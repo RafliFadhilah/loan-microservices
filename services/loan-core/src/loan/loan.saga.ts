@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { createKafkaClient } from '../../../libs/kafka/src/kafka.provider';
+import { createKafkaClient }  from '../common/kafka.provider';
 import { v4 as uuid } from 'uuid';
 import type { Producer } from 'kafkajs';
 
@@ -13,7 +13,7 @@ export class LoanSaga {
     const kafka = createKafkaClient([this.kafkaBroker]);
     // lazy init producer
     (async () => {
-      const kp = await import('../../../libs/kafka/src/kafka.provider');
+      const kp = await import('../common/kafka.provider');
       this.kafkaProducer = await kp.createProducer(kafka);
     })().catch(err => this.logger.error(err));
   }
@@ -21,7 +21,7 @@ export class LoanSaga {
   private async waitForEvent(topic: string, applicationId: string, timeoutMs = 15000): Promise<any> {
     const kafka = createKafkaClient([this.kafkaBroker]);
     const groupId = `saga-waiter-${uuid()}`;
-    const kp = await import('../../../libs/kafka/src/kafka.provider');
+    const kp = await import('../common/kafka.provider');
     const consumer = await kp.createConsumer(kafka, groupId);
     await consumer.subscribe({ topic, fromBeginning: false });
 
