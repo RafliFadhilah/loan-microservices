@@ -1,4 +1,4 @@
- import express, { Request, Response } from 'express';
+import express, { Request, Response } from 'express';
 import bodyParser from 'body-parser';
 import cors from 'cors';
 import axios from 'axios';
@@ -8,7 +8,7 @@ import axios from 'axios';
 // ==============================
 const LOAN_CORE_SERVERS = (
   process.env.LOAN_CORE_SERVERS ||
-  'http://localhost:3001,http://localhost:3002'
+  'http://loan-core:3000'
 ).split(',');
 
 const AUDIT_URL = process.env.AUDIT_URL || 'http://localhost:3010';
@@ -20,6 +20,20 @@ const PORT = Number(process.env.PORT || 3000);
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
+
+// ==============================
+// AUTHENTICATION MIDDLEWARE (NEW)
+// ==============================
+app.use((req, res, next) => {
+  // Lewati pengecekan untuk endpoint health
+  if (req.path === '/health') return next();
+  
+  const apiKey = req.headers['x-api-key'];
+  if (!apiKey || apiKey !== 'RAHASIA-123') {
+    return res.status(401).json({ error: 'Unauthorized: API Key tidak valid atau tidak ditemukan' });
+  }
+  next();
+});
 
 // ==============================
 // SIMPLE LOGGER
@@ -77,6 +91,20 @@ app.get('/health', async (_req, res) => {
 // ==============================
 app.post('/api/loans/apply', async (req: Request, res: Response) => {
   const payload = req.body;
+
+  // ==============================
+  // REQUEST VALIDATION (NEW)
+  // ==============================
+  if (!payload.userId) {
+    return res.status(400).json({ error: 'Bad Request: userId wajib diisi' });
+  }
+  if (!payload.amount || payload.amount <= 0) {
+    return res.status(400).json({ error: 'Bad Request: amount harus lebih besar dari 0' });
+  }
+  if (payload.type === 'UNSECURED' && payload.amount > 5000) {
+    return res.status(400).json({ error: 'Bad Request: Pinjaman UNSECURED tidak boleh lebih dari 5000' });
+  }
+
   const target = getLoanService();
 
   try {

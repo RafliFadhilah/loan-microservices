@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { createKafkaClient }  from '../common/kafka.provider';
+import { createKafkaClient } from '../common/kafka.provider';
 import { v4 as uuid } from 'uuid';
 import type { Producer } from 'kafkajs';
 
@@ -23,13 +23,11 @@ export class LoanSaga {
     const groupId = `saga-waiter-${uuid()}`;
     const kp = await import('../common/kafka.provider');
     const consumer = await kp.createConsumer(kafka, groupId);
-    await consumer.subscribe({ topic, fromBeginning: false });
+    await consumer.subscribe({ topic, fromBeginning: true });
 
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(async () => {
-        try {
-          await consumer.disconnect();
-        } catch {}
+      const timer = setTimeout(() => {
+        consumer.disconnect().catch(() => {});
         reject(new Error(`Timeout waiting for ${topic} for ${applicationId}`));
       }, timeoutMs);
 
@@ -40,17 +38,17 @@ export class LoanSaga {
           try {
             const payload = JSON.parse(message.value!.toString());
             clearTimeout(timer);
-            await consumer.disconnect();
             resolve(payload);
+            consumer.disconnect().catch(() => {});
           } catch (err) {
             clearTimeout(timer);
-            await consumer.disconnect();
             reject(err);
+            consumer.disconnect().catch(() => {});
           }
         }
-      }).catch(async err => {
+      }).catch(err => {
         clearTimeout(timer);
-        try { await consumer.disconnect(); } catch {}
+        consumer.disconnect().catch(() => {});
         reject(err);
       });
     });

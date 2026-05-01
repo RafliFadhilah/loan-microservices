@@ -1,18 +1,19 @@
-version: "3.8"
 networks:
   app-network:
+
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.1
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
-    ports: ["2181:2181"]
+    ports: [ "2181:2181" ]
     networks:
       - app-network
+
   kafka:
     image: confluentinc/cp-kafka:7.4.1
-    depends_on: [zookeeper]
+    depends_on: [ zookeeper ]
     hostname: kafka
     container_name: kafka
     environment:
@@ -21,9 +22,23 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-    ports: ["9092:9092"]
+      KAFKA_BROKER_ID: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_MIN_INSYNC_REPLICAS: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_LOG_REPLICATION_FACTOR: 1
+    ports: [ "9092:9092" ]
     networks:
       - app-network
+    healthcheck:
+      test: [ "CMD", "kafka-broker-api-versions", "--bootstrap-server", "kafka:9092" ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
 
   pg_loan_core:
     image: postgres:15
@@ -31,7 +46,9 @@ services:
       POSTGRES_USER: ${PG_LOAN_USER:-loan}
       POSTGRES_PASSWORD: ${PG_LOAN_PASSWORD:-loanpass}
       POSTGRES_DB: ${PG_LOAN_DB:-loan_core}
-    ports: ["5432:5432"]
+    ports: [ "5432:5432" ]
+    networks:
+      - app-network
     volumes:
       - pg_loan_core_data:/var/lib/postgresql/data
 
@@ -41,72 +58,109 @@ services:
       POSTGRES_USER: ${PG_KYC_USER:-kyc}
       POSTGRES_PASSWORD: ${PG_KYC_PASSWORD:-kycpass}
       POSTGRES_DB: ${PG_KYC_DB:-kyc}
-    ports: ["5433:5432"]
+    ports: [ "5433:5432" ]
+    networks:
+      - app-network
     volumes:
       - pg_kyc_data:/var/lib/postgresql/data
 
-  # Application services
+  # --- Application Services ---
+
   loan-core:
     build: ./services/loan-core
-    depends_on: [kafka, pg_loan_core]
+    depends_on:
+      kafka:
+        condition: service_healthy
+      pg_loan_core:
+        condition: service_started
     environment:
       - KAFKA_BROKER=kafka:9092
       - PG_LOAN_HOST=pg_loan_core
     ports:
       - "3001:3000"
+    networks:
+      - app-network
+    restart: on-failure
 
   kyc:
     build: ./services/kyc
-    depends_on: [kafka]
+    depends_on:
+      kafka:
+        condition: service_healthy
     environment:
       - KAFKA_BROKER=kafka:9092
+    networks:
+      - app-network
+    restart: on-failure
 
   credit:
     build: ./services/credit
-    depends_on: [kafka]
+    depends_on:
+      kafka:
+        condition: service_healthy
     environment:
       - KAFKA_BROKER=kafka:9092
+    networks:
+      - app-network
+    restart: on-failure
 
   risk:
     build: ./services/risk
-    depends_on: [kafka]
+    depends_on:
+      kafka:
+        condition: service_healthy
     environment:
       - KAFKA_BROKER=kafka:9092
+    networks:
+      - app-network
+    restart: on-failure
 
   blacklist:
     build: ./services/blacklist
-    depends_on: [kafka]
+    depends_on:
+      kafka:
+        condition: service_healthy
     environment:
       - KAFKA_BROKER=kafka:9092
+    networks:
+      - app-network
+    restart: on-failure
 
-  audit: 
-    image: loan-microservices-audit:latest 
-    depends_on: [kafka]
+  audit:
+    build:
+      context: .
+      dockerfile: ./services/audit/Dockerfile
+    image: loan-microservices-audit:latest
+    depends_on:
+      kafka:
+        condition: service_healthy
     environment:
       - KAFKA_BROKER=kafka:9092
       - AUDIT_HTTP_PORT=3010
     volumes:
       - ./audit_logs:/app/audit_logs
     ports:
-    - "3010:3010"
+      - "3010:3010"
     networks:
-      - app-network 
+      - app-network
+    restart: on-failure
 
   api-gateway:
     build: ./services/api-gateway
     depends_on:
-      - loan-core
-      - audit
+      loan-core:
+        condition: service_started
+      audit:
+        condition: service_started
     environment:
-      - LOAN_CORE_URL=http://loan-core:3000
+      - LOAN_CORE_SERVERS=http://loan-core:3000
       - AUDIT_URL=http://audit:3010
     ports:
       - "3000:3000"
     networks:
       - app-network
+    restart: on-failure
 
 volumes:
   pg_loan_core_data:
   pg_kyc_data:
-  
- 

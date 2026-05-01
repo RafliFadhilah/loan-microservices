@@ -1,4 +1,4 @@
-import { createKafkaClient } from '../../libs/kafka/src/kafka.provider';
+import { createKafkaClient } from './kafka.provider';
 
 function isBlacklisted(userId: string) {
   if (!userId) return false;
@@ -16,7 +16,7 @@ async function bootstrap() {
   console.log('Blacklist service subscribed to risk.checked');
   await consumer.run({
     eachMessage: async ({ message }) => {
-      const payload = JSON.parse(message.value.toString());
+      const payload = JSON.parse(message.value?.toString() ?? '{}');
       console.log('Blacklist checking', payload.applicationId, payload.userId);
       const blacklisted = isBlacklisted(payload.userId);
       const result = { applicationId: payload.applicationId, userId: payload.userId, blacklisted, reason: blacklisted ? 'MATCHED_BLACKLIST' : undefined, checkedAt: new Date().toISOString() };

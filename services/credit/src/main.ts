@@ -1,4 +1,4 @@
-import { createKafkaClient } from '../../libs/kafka/src/kafka.provider';
+import { createKafkaClient } from './kafka.provider';
 
 async function bootstrap() {
   const kafka = createKafkaClient([process.env.KAFKA_BROKER || 'kafka:9092']);
@@ -10,7 +10,7 @@ async function bootstrap() {
   console.log('Credit service subscribed to kyc.completed');
   await consumer.run({
     eachMessage: async ({ message }) => {
-      const payload = JSON.parse(message.value.toString());
+      const payload = JSON.parse(message.value?.toString() ?? '{}');
       console.log('Credit received kyc.completed:', payload.applicationId);
       // fake credit scoring
       const score = Math.floor(Math.random() * 801); // 0-800

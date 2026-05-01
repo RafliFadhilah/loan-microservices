@@ -1,6 +1,8 @@
 FROM node:18-alpine
 WORKDIR /app
-COPY package*.json ./
-RUN npm install
 COPY . .
-CMD ["node", "dist/main.js"]
+RUN npm install
+RUN npm install kafkajs @nestjs/platform-express
+RUN npm install -D typescript ts-node @types/node
+
+CMD ["npx", "ts-node", "--transpile-only", "src/main.ts"]

@@ -9,7 +9,7 @@ COPY package*.json ./
 RUN npm install
 
 COPY . .
-RUN npm run build   # 🔥 ini yang bikin dist/
+RUN npm run build   
 
 # ======================
 # 2. RUNTIME STAGE
