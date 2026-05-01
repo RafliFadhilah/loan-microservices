@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import express from 'express';
 
-const AUDIT_DIR = './audit_logs';
+const AUDIT_DIR = process.env.AUDIT_DIR || '/app/audit_logs';
 if (!fs.existsSync(AUDIT_DIR)) fs.mkdirSync(AUDIT_DIR, { recursive: true });
 
 async function startKafkaConsumer() {
